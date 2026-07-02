@@ -14,8 +14,7 @@ namespace {
     Pinetime::Controllers::Settings::DfuAndFsMode mode;
   };
 
-  constexpr std::array<Option, 3> options = {{
-    {"Enabled", Pinetime::Controllers::Settings::DfuAndFsMode::Enabled},
+  constexpr std::array<Option, 2> options = {{
     {"Disabled", Pinetime::Controllers::Settings::DfuAndFsMode::Disabled},
     {"Till reboot", Pinetime::Controllers::Settings::DfuAndFsMode::EnabledTillReboot},
   }};
@@ -43,9 +42,7 @@ SettingOTA::SettingOTA(Pinetime::Applications::DisplayApp* app, Pinetime::Contro
       1,
       "Firmware & files",
       Symbols::shieldAlt,
-      settingsController.GetDfuAndFsMode() == Pinetime::Controllers::Settings::DfuAndFsMode::Enabled             ? 0
-      : settingsController.GetDfuAndFsMode() == Pinetime::Controllers::Settings::DfuAndFsMode::EnabledTillReboot ? 2
-                                                                                                                 : 1,
+      settingsController.GetDfuAndFsMode() == Pinetime::Controllers::Settings::DfuAndFsMode::EnabledTillReboot ? 1 : 0,
       [&settings = settingsController](uint32_t index) {
         settings.SetDfuAndFsMode(options[index].mode);
       },
