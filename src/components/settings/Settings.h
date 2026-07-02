@@ -354,7 +354,7 @@ namespace Pinetime {
     private:
       Pinetime::Controllers::FS& fs;
 
-      static constexpr uint32_t settingsVersion = 0x000a;
+      static constexpr uint32_t settingsVersion = 0x000b;
 
       struct SettingsData {
         uint32_t version = settingsVersion;
@@ -367,7 +367,7 @@ namespace Pinetime {
         WeatherFormat weatherFormat = WeatherFormat::Metric;
         Notification notificationStatus = Notification::Off;
 
-        Pinetime::Applications::WatchFace watchFace = Pinetime::Applications::WatchFace::Digital;
+        Pinetime::Applications::WatchFace watchFace = Pinetime::Applications::WatchFace::Picture;
         ChimesOption chimesOption = ChimesOption::None;
 
         PineTimeStyle PTS;

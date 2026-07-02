@@ -10,7 +10,7 @@ Give a young wearer a digital watch face that feels like theirs: a favourite cha
 
 ## Approach
 
-The face follows the existing InfiniTime watch-face pattern exactly. It is a self-contained screen registered alongside the other faces, chosen from the normal watch-face settings menu, and built from the same data the Digital face already uses — time, date, and the battery, Bluetooth and notification status indicators. Everything new is additive: no existing face or shared screen is modified, so the change stays localised and easy to carry alongside upstream merges.
+The face follows the existing InfiniTime watch-face pattern exactly. It is a self-contained screen registered alongside the other faces and built from the same data the Digital face already uses — time, date, and the battery, Bluetooth and notification status indicators. Everything new is additive: no existing face or shared screen is modified, so the change stays localised and easy to carry alongside upstream merges.
 
 The distinguishing behaviour is that the face displays one image from a gallery held on the external flash, and lets the wearer swipe sideways to move through that gallery. Rather than compiling a fixed list of images into the firmware, the face discovers whatever images are present in a dedicated folder each time it opens. This turns "add or remove a picture" into a content task done from a phone, and keeps the firmware unchanged as the gallery grows.
 
@@ -32,7 +32,7 @@ Images are read from a single dedicated folder on the external flash — propose
 
 Each time the face opens, it lists that folder, collects the image files, and orders them by file name. File naming is therefore how the order is controlled — a numeric prefix gives a predictable sequence. Only files in the watch face's own image format are treated as pictures, so the marker used to remember the selection, and any stray non-image file, are ignored by the scan.
 
-If the folder is missing or contains no images, the face still works: it shows the clock, date, and status indicators on black, with no picture. This means the face can be selected and used before any images have been uploaded, and it can never end up in a broken state because of missing content. For the same reason the face is always offered in the watch-face settings menu, rather than being hidden until content exists.
+If the folder is missing or contains no images, the face still works: it shows the clock, date, and status indicators on black, with no picture. This means the face is usable before any images have been uploaded, and it can never end up in a broken state because of missing content. For the same reason the face always loads rather than being disabled until content exists — which matters especially because it is the watch's default face.
 
 ## Image format and capacity
 
@@ -54,9 +54,15 @@ The pictures the family intends to use depict popular, trademarked characters. D
 
 The face is a new screen class in the same place and style as the other watch faces, with the matching trait specialisation, an entry in the watch-face enumeration, inclusion in the user-facing watch-face list, and addition to the build's list of watch-face sources — the same short set of touch-points every watch face already uses, and nothing beyond them. It draws its clock, date, status indicators and image using the standard widgets, refreshes on the usual periodic task, and updates each element only when its underlying value has actually changed, so it stays as light on power and redraws as the existing faces. It reads the image folder through the existing filesystem component, which already provides directory listing.
 
+## Default face
+
+Because this fork's stripped-down firmware removes the on-watch watch-face chooser, there is no menu for switching faces. Picture is therefore set as the firmware's default watch face: a freshly provisioned watch comes up on it, and with no chooser it is effectively the only face the wearer sees. This suits the kids' watch — one fixed, personalised face — and reinforces why the face must always load even with no content, and why any on-watch choice happens within the image gallery rather than through a face menu.
+
+The default is the initial value of the stored watch-face setting, so it applies only when a watch loads its defaults rather than a saved settings file. Because an existing watch keeps its saved settings across a firmware update, the stored settings version is bumped so that flashing this firmware discards the old saved settings and boots on the current defaults, bringing up the Picture face. This resets the other settings to their defaults once, which on this watch are the intended stripped values anyway.
+
 ## Constraints
 
-The build must stay green and the change must remain confined to the new face and its registration, leaving existing faces, the shared settings component, and other unrelated code untouched, to keep the fork mergeable with upstream. The face must respect the watch's reserved gestures and only consume the sideways swipes. It must never fail because content is missing or malformed: a missing folder, an empty folder, or an unreadable file must degrade gracefully rather than crash or hang.
+The build must stay green and the change must remain confined to the new face, its registration, the default-face value, and the settings-version bump that makes that default apply, leaving existing faces and other unrelated code untouched, to keep the fork mergeable with upstream. The face must respect the watch's reserved gestures and only consume the sideways swipes. It must never fail because content is missing or malformed: a missing folder, an empty folder, or an unreadable file must degrade gracefully rather than crash or hang.
 
 ## Out of scope
 
