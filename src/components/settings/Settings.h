@@ -354,7 +354,7 @@ namespace Pinetime {
     private:
       Pinetime::Controllers::FS& fs;
 
-      static constexpr uint32_t settingsVersion = 0x000b;
+      static constexpr uint32_t settingsVersion = 0x000c;
 
       struct SettingsData {
         uint32_t version = settingsVersion;
@@ -363,7 +363,7 @@ namespace Pinetime {
 
         bool alwaysOnDisplay = false;
 
-        ClockType clockType = ClockType::H24;
+        ClockType clockType = ClockType::H12;
         WeatherFormat weatherFormat = WeatherFormat::Metric;
         Notification notificationStatus = Notification::Off;
 
