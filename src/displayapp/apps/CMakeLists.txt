@@ -10,7 +10,7 @@ endif ()
 if(DEFINED ENABLE_WATCHFACES)
     set(WATCHFACE_TYPES ${ENABLE_WATCHFACES} CACHE STRING "List of watch faces to build into the firmware")
 else()
-    set(DEFAULT_WATCHFACE_TYPES "WatchFace::Digital")
+    set(DEFAULT_WATCHFACE_TYPES "WatchFace::Digital, WatchFace::Picture")
     set(WATCHFACE_TYPES "${DEFAULT_WATCHFACE_TYPES}" CACHE STRING "List of watch faces to build into the firmware")
 endif()
 
