@@ -21,6 +21,17 @@
 
 using namespace Pinetime::System;
 
+// Definition of the .noinit clock-backup checksum declared in SystemTask.h. It is defined in
+// this shared source, linked by both the firmware and the simulator, because Work() writes it
+// and the simulator links its own main.cpp. On the watch it must survive reboots (.noinit
+// section); the simulator has no such section, so there it is a plain global, matching how
+// InfiniSim defines NoInit_BackUpTime.
+#ifdef __arm__
+uint32_t NoInit_BackUpTimeCrc __attribute__((section(".noinit")));
+#else
+uint32_t NoInit_BackUpTimeCrc;
+#endif
+
 namespace {
   inline bool in_isr() {
     return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
@@ -392,6 +403,7 @@ void SystemTask::Work() {
       }
       monitor.Process();
       NoInit_BackUpTime = dateTimeController.CurrentDateTime();
+      NoInit_BackUpTimeCrc = NoInit_ComputeBackUpTimeCrc(NoInit_BackUpTime);
       if (nrf_gpio_pin_read(PinMap::Button) == 0) {
         watchdog.Reload();
       }

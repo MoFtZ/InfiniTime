@@ -42,6 +42,19 @@ SECTIONS
 {
   .noinit(NOLOAD):
   {
+    /* Pin the clock backup (NoInit_MagicWord / NoInit_BackUpTime, see
+       src/main.cpp) to a fixed address ABOVE the MCUBoot bootloader's RAM.
+       MCUBoot uses .data+.bss up to 0x20006424 as working memory on every boot;
+       at its default placement (right after this app's .bss, ~0x20005c10)
+       .noinit falls inside that region and is wiped on every reboot, so the
+       clock resets to the build date. 0x20007000 is just above the bootloader's
+       ceiling (with margin) and well below its stack, so the value survives a
+       reboot. The FreeRTOS heap begins right after this and still has ~35 kB.
+       If linking ever fails to place .noinit here, this app's .bss has grown
+       past the pin: raise the address and re-check heap headroom. The standalone
+       gcc_nrf52.ld is intentionally left unpinned - nothing runs before that
+       image to clobber the region. */
+    . = ABSOLUTE(0x20007000);
     PROVIDE(__start_noinit_data = .);
     *(.noinit)
     PROVIDE(__stop_noinit_data = .);

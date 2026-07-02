@@ -166,9 +166,11 @@ void vApplicationStackOverflowHook(TaskHandle_t /*xTask*/, char* /*pcTaskName*/)
 */
 extern uint32_t __start_noinit_data;
 extern uint32_t __stop_noinit_data;
-static constexpr uint32_t NoInit_MagicValue = 0xDEAD0000;
+static constexpr uint32_t NoInit_MagicValue = 0xDEAD0001;
 uint32_t NoInit_MagicWord __attribute__((section(".noinit")));
 std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> NoInit_BackUpTime __attribute__((section(".noinit")));
+// NoInit_BackUpTimeCrc is defined in SystemTask.cpp (which writes it); like the globals above
+// it lives in .noinit.
 
 void nrfx_gpiote_evt_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
   if (pin == Pinetime::PinMap::Cst816sIrq) {
@@ -352,7 +354,16 @@ int main() {
   // retrieve version stored by bootloader
   Pinetime::BootloaderVersion::SetVersion(NRF_TIMER2->CC[0]);
 
-  if (NoInit_MagicWord == NoInit_MagicValue) {
+  // Restore the backed-up time only if the .noinit region is trustworthy: the magic
+  // word matches, the checksum matches the stored time, and the time is plausible (at
+  // or after the build date and not absurdly far in the future). buildDefault is the
+  // compile-time value the DateTime constructor already set, so a rejected or absent
+  // backup simply keeps that default rather than a corrupt restored time.
+  auto buildDefault = dateTimeController.CurrentDateTime();
+  if (NoInit_MagicWord == NoInit_MagicValue &&
+      NoInit_BackUpTimeCrc == NoInit_ComputeBackUpTimeCrc(NoInit_BackUpTime) &&
+      NoInit_BackUpTime >= buildDefault &&
+      NoInit_BackUpTime <= buildDefault + std::chrono::hours(24 * 365 * 100)) {
     dateTimeController.SetCurrentTime(NoInit_BackUpTime);
   } else {
     // Clear Memory to known state

@@ -33,6 +33,21 @@
 #include "systemtask/Messages.h"
 
 extern std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> NoInit_BackUpTime;
+extern uint32_t NoInit_BackUpTimeCrc;
+
+// Integrity checksum for the .noinit clock backup (defined in SystemTask.cpp). Written
+// alongside NoInit_BackUpTime whenever the backup is updated, and verified on boot, so
+// a partially corrupted backup is rejected instead of restored as a bogus time. This is
+// FNV-1a over the 64-bit tick count - a corruption detector, not security.
+inline uint32_t NoInit_ComputeBackUpTimeCrc(std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> t) {
+  uint64_t value = static_cast<uint64_t>(t.time_since_epoch().count());
+  uint32_t hash = 2166136261u; // FNV-1a 32-bit offset basis
+  for (int i = 0; i < 8; i++) {
+    hash ^= static_cast<uint8_t>(value >> (i * 8));
+    hash *= 16777619u; // FNV-1a 32-bit prime
+  }
+  return hash;
+}
 
 namespace Pinetime {
   namespace Drivers {
