@@ -33,6 +33,12 @@ namespace Pinetime {
     public:
       static constexpr uint8_t MaxAlarms = 4;
 
+      // A ringing alarm can be postponed a fixed number of times, each for a
+      // fixed interval, before it dismisses itself. Manual snoozes and the
+      // ignore-timeout snooze share this same allowance.
+      static constexpr uint8_t MaxSnoozes = 3;
+      static constexpr uint8_t SnoozeMinutes = 9;
+
       // Recurrence is a set of weekdays, one bit per day indexed by tm_wday
       // (Sunday = bit 0 ... Saturday = bit 6). An empty set (0) means the
       // alarm fires once at its next occurrence and then disables itself.
@@ -51,6 +57,12 @@ namespace Pinetime {
       void SetOffAlarmNow();
       uint32_t SecondsToAlarm() const;
       void StopAlerting();
+      void Snooze();
+
+      // True while the current alerting session still has snoozes left.
+      bool CanSnooze() const {
+        return snoozeCount < MaxSnoozes;
+      }
 
       uint8_t Hours(uint8_t index) const {
         if (index >= MaxAlarms) {
@@ -115,9 +127,11 @@ namespace Pinetime {
       };
 
       bool isAlerting = false;
+      bool isSnoozing = false;
       bool alarmChanged = false;
       uint8_t alertingAlarmIndex = 0;
       uint8_t nextAlarmIndex = 0;
+      uint8_t snoozeCount = 0;
 
       Controllers::DateTime& dateTimeController;
       Controllers::FS& fs;

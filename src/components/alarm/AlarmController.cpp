@@ -102,8 +102,10 @@ void AlarmController::SetAlarmTime(uint8_t index, uint8_t alarmHr, uint8_t alarm
 }
 
 void AlarmController::ScheduleAlarm() {
-  // Determine the next alarm to schedule and set the timer
+  // Determine the next alarm to schedule and set the timer.
+  // Recomputing the regular schedule supersedes any pending snooze.
   xTimerStop(alarmTimer, 0);
+  isSnoozing = false;
 
   nextAlarmIndex = CalculateNextAlarm();
   if (nextAlarmIndex >= MaxAlarms) {
@@ -145,13 +147,37 @@ void AlarmController::SetEnabled(uint8_t index, bool enabled) {
 }
 
 void AlarmController::SetOffAlarmNow() {
+  // A snooze re-fire keeps the running snooze count; a freshly scheduled
+  // alarm starts the session with the full snooze allowance.
+  if (isSnoozing) {
+    isSnoozing = false;
+  } else {
+    snoozeCount = 0;
+  }
   isAlerting = true;
   alertingAlarmIndex = nextAlarmIndex;
   systemTask->PushMessage(System::Messages::SetOffAlarm);
 }
 
+void AlarmController::Snooze() {
+  // Postpone the currently-alerting alarm without touching its recurrence or
+  // enabled state. The re-fire goes through the normal alerting path, so keep
+  // nextAlarmIndex pointed at this alarm. Callers must check CanSnooze() first.
+  isAlerting = false;
+  isSnoozing = true;
+  snoozeCount++;
+  nextAlarmIndex = alertingAlarmIndex;
+
+  xTimerStop(alarmTimer, 0);
+  alarmTime = dateTimeController.CurrentDateTime() + std::chrono::minutes(SnoozeMinutes);
+  const uint32_t secondsToAlarm = SnoozeMinutes * 60;
+  xTimerChangePeriod(alarmTimer, secondsToAlarm * configTICK_RATE_HZ, 0);
+  xTimerStart(alarmTimer, 0);
+}
+
 void AlarmController::StopAlerting() {
   isAlerting = false;
+  snoozeCount = 0;
   // Disable alarm unless it is recurring
   if (alarms[alertingAlarmIndex].daysOfWeek == DaysNone) {
     alarms[alertingAlarmIndex].isEnabled = false;

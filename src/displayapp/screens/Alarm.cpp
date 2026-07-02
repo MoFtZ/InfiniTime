@@ -92,7 +92,7 @@ static void btnEventHandler(lv_obj_t* obj, lv_event_t event) {
 
 static void StopAlarmTaskCallback(lv_task_t* task) {
   auto* screen = static_cast<Alarm*>(task->user_data);
-  screen->StopAlerting();
+  screen->OnAlarmTimeout();
 }
 
 static void launcherBtnEventHandler(lv_obj_t* obj, lv_event_t event) {
@@ -226,6 +226,16 @@ void Alarm::CreateAlarmConfigUI(uint8_t alarmIndex) {
   lv_label_set_text_static(txtStop, Symbols::stop);
   lv_obj_set_hidden(btnStop, true);
 
+  btnSnooze = lv_btn_create(lv_scr_act(), nullptr);
+  btnSnooze->user_data = this;
+  lv_obj_set_event_cb(btnSnooze, btnEventHandler);
+  lv_obj_set_size(btnSnooze, 115, 70);
+  lv_obj_align(btnSnooze, lv_scr_act(), LV_ALIGN_IN_BOTTOM_LEFT, 0, 0);
+  lv_obj_set_style_local_bg_color(btnSnooze, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, Colors::blue);
+  txtSnooze = lv_label_create(btnSnooze, nullptr);
+  lv_label_set_text_static(txtSnooze, "Snooze");
+  lv_obj_set_hidden(btnSnooze, true);
+
   static constexpr lv_color_t bgColor = Colors::bgAlt;
 
   btnRecur = lv_btn_create(lv_scr_act(), nullptr);
@@ -334,6 +344,11 @@ void Alarm::OnButtonEvent(lv_obj_t* obj, lv_event_t event) {
       app->StartApp(Apps::Clock, DisplayApp::FullRefreshDirections::Down);
       return;
     }
+    if (obj == btnSnooze) {
+      Snooze();
+      app->StartApp(Apps::Clock, DisplayApp::FullRefreshDirections::Down);
+      return;
+    }
     if (obj == btnInfo) {
       ShowInfo();
       return;
@@ -393,7 +408,20 @@ void Alarm::SetAlerting() {
   lv_obj_set_hidden(btnInfo, true);
   hourCounter.HideControls();
   minuteCounter.HideControls();
+
+  // Offer snooze alongside stop until the snooze allowance is used up; on the
+  // final ring only stop is shown, spanning the full width.
+  if (alarmController.CanSnooze()) {
+    lv_obj_set_hidden(btnSnooze, false);
+    lv_obj_set_size(btnStop, 115, 70);
+    lv_obj_align(btnStop, lv_scr_act(), LV_ALIGN_IN_BOTTOM_RIGHT, 0, 0);
+  } else {
+    lv_obj_set_hidden(btnSnooze, true);
+    lv_obj_set_size(btnStop, 240, 70);
+    lv_obj_align(btnStop, lv_scr_act(), LV_ALIGN_IN_BOTTOM_LEFT, 0, 0);
+  }
   lv_obj_set_hidden(btnStop, false);
+
   taskStopAlarm = lv_task_create(StopAlarmTaskCallback, pdMS_TO_TICKS(60 * 1000), LV_TASK_PRIO_MID, this);
   motorController.StartRinging();
   wakeLock.Lock();
@@ -408,6 +436,26 @@ void Alarm::StopAlerting() {
   }
   wakeLock.Release();
   lv_indev_wait_release(lv_indev_get_act());
+}
+
+void Alarm::Snooze() {
+  alarmController.Snooze();
+  motorController.StopRinging();
+  if (taskStopAlarm != nullptr) {
+    lv_task_del(taskStopAlarm);
+    taskStopAlarm = nullptr;
+  }
+  wakeLock.Release();
+  lv_indev_wait_release(lv_indev_get_act());
+}
+
+void Alarm::OnAlarmTimeout() {
+  // An ignored alarm snoozes until its allowance runs out, then dismisses.
+  if (alarmController.CanSnooze()) {
+    Snooze();
+  } else {
+    StopAlerting();
+  }
 }
 
 void Alarm::ShowInfo() {

@@ -43,6 +43,7 @@ namespace Pinetime {
         bool OnTouchEvent(TouchEvents event) override;
         void OnValueChanged();
         void StopAlerting();
+        void OnAlarmTimeout();
 
       private:
         Pinetime::Applications::DisplayApp* app;
@@ -62,7 +63,7 @@ namespace Pinetime {
         lv_style_t launcherButtonStyle;
 
         // Config mode elements
-        lv_obj_t *btnStop, *txtStop, *btnRecur, *txtRecur, *btnInfo, *btnBack;
+        lv_obj_t *btnStop, *txtStop, *btnSnooze, *txtSnooze, *btnRecur, *txtRecur, *btnInfo, *btnBack;
         lv_obj_t* lblampm = nullptr;
         lv_obj_t* txtMessage = nullptr;
         lv_obj_t* btnMessage = nullptr;
@@ -78,6 +79,7 @@ namespace Pinetime {
         void CreateLauncherUI();
         void CreateAlarmConfigUI(uint8_t alarmIndex);
         void DisableAlarm();
+        void Snooze();
         void SetRecurButtonState();
         void SetAlarm();
         void ShowInfo();
