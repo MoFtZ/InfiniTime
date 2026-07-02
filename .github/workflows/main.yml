@@ -3,12 +3,12 @@ name: CI
 # Run this workflow whenever the build may be affected
 on:
   push:
-    branches: [ main ]
+    branches: [ develop ]
     paths-ignore:
       - 'doc/**'
       - '**.md'
   pull_request:
-    branches: [ main ]
+    branches: [ develop ]
     paths-ignore:
       - 'doc/**'
       - '**.md'
@@ -78,6 +78,19 @@ jobs:
         with:
           name: InfiniTime resources ${{ env.REF_NAME }}
           path: ./build/output/infinitime-resources-*.zip
+      - name: Stage release assets
+        if: github.event_name == 'push'
+        run: |
+          mkdir -p release-assets
+          cp ./build/output/pinetime-mcuboot-app-dfu-*.zip   release-assets/
+          cp ./build/output/pinetime-mcuboot-app-image-*.bin release-assets/
+          cp ./build/output/infinitime-resources-*.zip       release-assets/
+      - name: Upload release assets bundle
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets/*
 
   build-simulator:
     runs-on: ubuntu-22.04
@@ -120,105 +133,39 @@ jobs:
         name: infinisim-${{ env.REF_NAME }}
         path: build_lv_sim/infinisim
 
-  get-base-ref-size:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-22.04
-    container:
-      image: infinitime/infinitime-build
-    outputs:
-      text_size: ${{ steps.output-sizes.outputs.text_size }}
-      data_size: ${{ steps.output-sizes.outputs.data_size }}
-      bss_size: ${{ steps.output-sizes.outputs.bss_size }}
-    env:
-      # InfiniTime sources are downloaded to the current directory.
-      # Override SOURCES_DIR in build.sh
-      SOURCES_DIR: .
-    steps:
-    - name: Checkout current base branch files
-      uses: actions/checkout@v3
-      with:
-        ref: ${{ github.base_ref }}
-        submodules: recursive
-
-    - name: Get base branch SHA
-      id: get-base-sha
-      run: |
-        # Fix for "detected dubious ownership in repository at '/__w/InfiniTime/InfiniTime'"
-        git config --global --add safe.directory /__w/InfiniTime/InfiniTime
-        echo base_sha=$(git rev-parse HEAD) >> $GITHUB_OUTPUT
-
-    - name: Cache build
-      id: cache-build
-      uses: actions/cache@v3
-      with:
-        path: ./build
-        key: build-files-${{ steps.get-base-sha.outputs.base_sha }}
-
-    - if: ${{ steps.cache-build.outputs.cache-hit != 'true' }}
-      name: Build
-      shell: bash
-      # Only pinetime-app target is needed, but post_build.sh fails
-      run: /opt/build.sh all
-
-    - name: Output build size
-      id: output-sizes
-      shell: bash
-      run: |
-        . /opt/build.sh
-        .github/workflows/getSize.sh "$BUILD_DIR"/src/pinetime-app-*.out >> $GITHUB_OUTPUT
-
-  compare-build-size:
-    if: github.event_name == 'pull_request'
-    name: 'Compare build size'
-    needs: [build-firmware, get-base-ref-size]
+  release-develop:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: build-firmware
     runs-on: ubuntu-latest
+    permissions:
+      contents: write              # scoped to this job only
+    concurrency:                   # serialize only the release publish; builds still run in parallel
+      group: develop-release
+      cancel-in-progress: false    # never cancel a half-published release
     steps:
-    - name: Compare build size
-      id: output-sizes-diff
-      run: |
-        TEXT_SIZE=${{ needs.build-firmware.outputs.text_size }}
-        DATA_SIZE=${{ needs.build-firmware.outputs.data_size }}
-        BSS_SIZE=${{ needs.build-firmware.outputs.bss_size }}
-
-        echo "text_size=$TEXT_SIZE"
-        echo "data_size=$DATA_SIZE"
-        echo "bss_size=$BSS_SIZE"
-
-        echo "text_size=$TEXT_SIZE" >> $GITHUB_OUTPUT
-        echo "data_size=$DATA_SIZE" >> $GITHUB_OUTPUT
-        echo "bss_size=$BSS_SIZE" >> $GITHUB_OUTPUT
-
-        TEXT_SIZE_BASE=${{ needs.get-base-ref-size.outputs.text_size }}
-        DATA_SIZE_BASE=${{ needs.get-base-ref-size.outputs.data_size }}
-        BSS_SIZE_BASE=${{ needs.get-base-ref-size.outputs.bss_size }}
-
-        TEXT_SIZE_DIFF=$((TEXT_SIZE - TEXT_SIZE_BASE))
-        DATA_SIZE_DIFF=$((DATA_SIZE - DATA_SIZE_BASE))
-        BSS_SIZE_DIFF=$((BSS_SIZE - BSS_SIZE_BASE))
-
-        echo "text_diff=$TEXT_SIZE_DIFF"
-        echo "data_diff=$DATA_SIZE_DIFF"
-        echo "bss_diff=$BSS_SIZE_DIFF"
-
-        echo "text_diff=$TEXT_SIZE_DIFF" >> $GITHUB_OUTPUT
-        echo "data_diff=$DATA_SIZE_DIFF" >> $GITHUB_OUTPUT
-        echo "bss_diff=$BSS_SIZE_DIFF" >> $GITHUB_OUTPUT
-
-    - name: Write comment information to files
-      run: |
-        tee comment << EOF
-        Build size and comparison to ${{ github.base_ref }}:
-        | Section | Size | Difference |
-        | ------- | ---- | ---------- |
-        | text    | ${{ needs.build-firmware.outputs.text_size }}B | ${{ steps.output-sizes-diff.outputs.text_diff }}B |
-        | data    | ${{ needs.build-firmware.outputs.data_size }}B | ${{ steps.output-sizes-diff.outputs.data_diff }}B |
-        | bss     | ${{ needs.build-firmware.outputs.bss_size }}B  | ${{ steps.output-sizes-diff.outputs.bss_diff }}B  |
-
-        [Run in InfiniEmu](https://infiniemu.pipe01.net/?firmware=artifact://${{ github.repository }}/${{ needs.build-firmware.outputs.firmware_artifact }}&resources=artifact://${{ github.repository }}/${{ needs.build-firmware.outputs.resources_artifact }})
-        EOF
-
-    - name: Upload comment
-      uses: actions/upload-artifact@v4
-      with:
-        name: comment
-        path: comment
+      - uses: actions/checkout@v3        # needed to force-move the rolling tag
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+      - name: Publish / refresh develop-latest rolling pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # 1. Move the rolling tag to this commit (creates it on first run).
+          git tag -f develop-latest
+          git push -f origin develop-latest
+          NOTES="Automated rolling build from the latest commit on \`develop\`.
+          Commit: ${GITHUB_SHA}
+          Built: $(date -u '+%Y-%m-%d %H:%M UTC')"
+          # 2. Create the release if missing, else update its metadata.
+          if gh release view develop-latest >/dev/null 2>&1; then
+            gh release edit develop-latest --prerelease \
+              --title "InfiniTime develop (latest build)" --notes "$NOTES"
+          else
+            gh release create develop-latest --prerelease --target "$GITHUB_SHA" \
+              --title "InfiniTime develop (latest build)" --notes "$NOTES"
+          fi
+          # 3. Upload/replace the flashable assets (stable filenames -> --clobber).
+          gh release upload develop-latest release-assets/* --clobber
