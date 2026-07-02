@@ -101,6 +101,14 @@ namespace Pinetime {
           return false;
         }
 
+        bool IsFirst() const {
+          return screenIndex == 0;
+        }
+
+        bool IsLast() const {
+          return screenIndex == screens.size() - 1;
+        }
+
       private:
         DisplayApp* app;
         uint8_t initScreen = 0;

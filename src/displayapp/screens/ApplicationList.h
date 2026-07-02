@@ -6,6 +6,7 @@
 #include "Screen.h"
 #include "ScreenList.h"
 #include "displayapp/Controllers.h"
+#include "components/brightness/BrightnessController.h"
 #include "Symbols.h"
 #include "Tile.h"
 
@@ -14,14 +15,17 @@ namespace Pinetime {
     namespace Screens {
       class ApplicationList : public Screen {
       public:
+        // The user apps (Alarm, Timer, Stopwatch) plus the two built-in launcher items: Settings and Brightness.
+        static constexpr size_t nItems = UserAppTypes::Count + 2;
+
         explicit ApplicationList(DisplayApp* app,
                                  Pinetime::Controllers::Settings& settingsController,
                                  const Pinetime::Controllers::Battery& batteryController,
                                  const Pinetime::Controllers::Ble& bleController,
                                  const Pinetime::Controllers::AlarmController& alarmController,
                                  Controllers::DateTime& dateTimeController,
-                                 Pinetime::Controllers::FS& filesystem,
-                                 std::array<Tile::Applications, UserAppTypes::Count>&& apps);
+                                 Pinetime::Controllers::BrightnessController& brightnessController,
+                                 std::array<Tile::Applications, nItems>&& applications);
         ~ApplicationList() override;
         bool OnTouchEvent(TouchEvents event) override;
 
@@ -35,12 +39,11 @@ namespace Pinetime {
         const Pinetime::Controllers::Ble& bleController;
         const Pinetime::Controllers::AlarmController& alarmController;
         Controllers::DateTime& dateTimeController;
-        Pinetime::Controllers::FS& filesystem;
-        std::array<Tile::Applications, UserAppTypes::Count> apps;
+        Pinetime::Controllers::BrightnessController& brightnessController;
+        std::array<Tile::Applications, nItems> applications;
 
-        static constexpr int appsPerScreen = 6;
-
-        static constexpr int nScreens = UserAppTypes::Count > 0 ? (UserAppTypes::Count - 1) / appsPerScreen + 1 : 1;
+        // One item per full-page screen.
+        static constexpr int nScreens = nItems;
 
         ScreenList<nScreens> screens;
       };

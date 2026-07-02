@@ -1,6 +1,5 @@
 #include "displayapp/screens/Tile.h"
-#include "displayapp/screens/BatteryIcon.h"
-#include "components/ble/BleController.h"
+#include "displayapp/DisplayApp.h"
 #include "displayapp/InfiniTimeTheme.h"
 
 using namespace Pinetime::Applications::Screens;
@@ -12,14 +11,8 @@ namespace {
   }
 
   void event_handler(lv_obj_t* obj, lv_event_t event) {
-    if (event != LV_EVENT_VALUE_CHANGED) {
-      return;
-    }
-
-    Tile* screen = static_cast<Tile*>(obj->user_data);
-    auto* eventDataPtr = (uint32_t*) lv_event_get_data();
-    uint32_t eventData = *eventDataPtr;
-    screen->OnValueChangedEvent(obj, eventData);
+    auto* screen = static_cast<Tile*>(obj->user_data);
+    screen->OnButtonEvent(obj, event);
   }
 }
 
@@ -31,11 +24,16 @@ Tile::Tile(uint8_t screenID,
            const Controllers::Ble& bleController,
            const Controllers::AlarmController& alarmController,
            Controllers::DateTime& dateTimeController,
-           std::array<Applications, 6>& applications)
+           Controllers::BrightnessController& brightnessController,
+           const Applications& application)
   : app {app},
+    settingsController {settingsController},
     dateTimeController {dateTimeController},
+    brightnessController {brightnessController},
     pageIndicator(screenID, numScreens),
-    statusIcons(batteryController, bleController, alarmController) {
+    statusIcons(batteryController, bleController, alarmController),
+    launchApp {application.application},
+    action {application.action} {
 
   settingsController.SetAppMenu(screenID);
 
@@ -49,42 +47,29 @@ Tile::Tile(uint8_t screenID,
 
   pageIndicator.Create();
 
-  uint8_t btIndex = 0;
-  for (uint8_t i = 0; i < 6; i++) {
-    if (i == 3) {
-      btnmMap[btIndex++] = "\n";
-    }
-    if (applications[i].application == Apps::None) {
-      btnmMap[btIndex] = " ";
-    } else {
-      btnmMap[btIndex] = applications[i].icon;
-    }
-    btIndex++;
-    apps[i] = applications[i].application;
+  // Full-page card: large icon with the item name beneath it. Tapping anywhere on the card activates it.
+  button = lv_btn_create(lv_scr_act(), nullptr);
+  button->user_data = this;
+  lv_obj_set_event_cb(button, event_handler);
+  lv_obj_set_style_local_radius(button, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, 20);
+  lv_obj_set_style_local_bg_color(button, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, Colors::bgAlt);
+  lv_obj_set_size(button, LV_HOR_RES - 16, LV_VER_RES - 60);
+  lv_obj_align(button, nullptr, LV_ALIGN_CENTER, 0, 10);
+  lv_btn_set_layout(button, LV_LAYOUT_OFF);
+
+  icon = lv_label_create(button, nullptr);
+  lv_obj_set_style_local_text_font(icon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &lv_font_sys_48);
+  // The brightness card always reflects the live level, not the icon captured when the list was built.
+  if (action == Action::CycleBrightness) {
+    lv_label_set_text_static(icon, brightnessController.GetIcon());
+  } else {
+    lv_label_set_text_static(icon, application.icon);
   }
-  btnmMap[btIndex] = "";
+  lv_obj_align(icon, nullptr, LV_ALIGN_CENTER, 0, -20);
 
-  btnm1 = lv_btnmatrix_create(lv_scr_act(), nullptr);
-  lv_btnmatrix_set_map(btnm1, btnmMap);
-  lv_obj_set_size(btnm1, LV_HOR_RES - 16, LV_VER_RES - 60);
-  lv_obj_align(btnm1, nullptr, LV_ALIGN_CENTER, 0, 10);
-
-  lv_obj_set_style_local_radius(btnm1, LV_BTNMATRIX_PART_BTN, LV_STATE_DEFAULT, 20);
-  lv_obj_set_style_local_bg_color(btnm1, LV_BTNMATRIX_PART_BTN, LV_STATE_DEFAULT, Colors::bgAlt);
-  lv_obj_set_style_local_bg_opa(btnm1, LV_BTNMATRIX_PART_BTN, LV_STATE_DISABLED, LV_OPA_50);
-  lv_obj_set_style_local_bg_color(btnm1, LV_BTNMATRIX_PART_BTN, LV_STATE_DISABLED, Colors::bgDark);
-  lv_obj_set_style_local_pad_all(btnm1, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, 0);
-  lv_obj_set_style_local_pad_inner(btnm1, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, 10);
-
-  for (uint8_t i = 0; i < 6; i++) {
-    lv_btnmatrix_set_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_CLICK_TRIG);
-    if (applications[i].application == Apps::None || !applications[i].enabled) {
-      lv_btnmatrix_set_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_DISABLED);
-    }
-  }
-
-  btnm1->user_data = this;
-  lv_obj_set_event_cb(btnm1, event_handler);
+  label = lv_label_create(button, nullptr);
+  lv_label_set_text_static(label, application.name);
+  lv_obj_align(label, icon, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
 
   taskUpdate = lv_task_create(lv_update_task, 5000, LV_TASK_PRIO_MID, this);
 
@@ -101,11 +86,22 @@ void Tile::UpdateScreen() {
   statusIcons.Update();
 }
 
-void Tile::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {
-  if (obj != btnm1) {
+void Tile::OnButtonEvent(lv_obj_t* obj, lv_event_t event) {
+  if (event != LV_EVENT_CLICKED || obj != button) {
     return;
   }
 
-  app->StartApp(apps[buttonId], DisplayApp::FullRefreshDirections::Up);
+  if (action == Action::CycleBrightness) {
+    brightnessController.Step();
+    settingsController.SetBrightness(brightnessController.Level());
+    lv_label_set_text_static(icon, brightnessController.GetIcon());
+    lv_obj_align(icon, nullptr, LV_ALIGN_CENTER, 0, -20);
+    return;
+  }
+
+  if (launchApp == Apps::Settings) {
+    settingsController.SetSettingsMenu(0);
+  }
+  app->StartApp(launchApp, DisplayApp::FullRefreshDirections::Up);
   running = false;
 }

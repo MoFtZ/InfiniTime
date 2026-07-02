@@ -31,6 +31,7 @@
 #include "displayapp/screens/PassKey.h"
 #include "displayapp/screens/Error.h"
 #include "displayapp/screens/Calculator.h"
+#include "displayapp/screens/Symbols.h"
 
 #include "drivers/Cst816s.h"
 #include "drivers/St7789.h"
@@ -421,13 +422,12 @@ void DisplayApp::Refresh() {
           if (currentApp == Apps::Clock) {
             switch (gesture) {
               case TouchEvents::SwipeUp:
+                settingsController.SetAppMenu(0);
                 LoadNewScreen(Apps::Launcher, DisplayApp::FullRefreshDirections::Up);
                 break;
               case TouchEvents::SwipeDown:
-                LoadNewScreen(Apps::Notifications, DisplayApp::FullRefreshDirections::Down);
-                break;
-              case TouchEvents::SwipeRight:
-                LoadNewScreen(Apps::QuickSettings, DisplayApp::FullRefreshDirections::RightAnim);
+                settingsController.SetAppMenu(static_cast<uint8_t>(Screens::ApplicationList::nItems - 1));
+                LoadNewScreen(Apps::Launcher, DisplayApp::FullRefreshDirections::Down);
                 break;
               case TouchEvents::DoubleTap:
                 PushMessageToSystemTask(System::Messages::GoToSleep);
@@ -469,9 +469,7 @@ void DisplayApp::Refresh() {
         LoadNewScreen(Apps::SysInfo, DisplayApp::FullRefreshDirections::Up);
         break;
       case Messages::ButtonDoubleClicked:
-        if (currentApp != Apps::Notifications && currentApp != Apps::NotificationsPreview) {
-          LoadNewScreen(Apps::Notifications, DisplayApp::FullRefreshDirections::Down);
-        }
+        // Notifications screen removed; double-click intentionally does nothing
         break;
 
       case Messages::BleFirmwareUpdateStarted:
@@ -523,17 +521,20 @@ void DisplayApp::LoadScreen(Apps app, DisplayApp::FullRefreshDirections directio
 
   switch (app) {
     case Apps::Launcher: {
-      std::array<Screens::Tile::Applications, UserAppTypes::Count> apps;
-      std::ranges::transform(userApps, apps.begin(), [this](const auto& userApp) {
-        return Screens::Tile::Applications {userApp.icon, userApp.app, userApp.isAvailable(controllers.filesystem)};
-      });
+      std::array<Screens::Tile::Applications, Screens::ApplicationList::nItems> apps {{
+        {Screens::Symbols::bell, "Alarm", Apps::Alarm, Screens::Tile::Action::LaunchApp},
+        {Screens::Symbols::hourGlass, "Timer", Apps::Timer, Screens::Tile::Action::LaunchApp},
+        {Screens::Symbols::stopWatch, "Stopwatch", Apps::StopWatch, Screens::Tile::Action::LaunchApp},
+        {Screens::Symbols::settings, "Settings", Apps::Settings, Screens::Tile::Action::LaunchApp},
+        {brightnessController.GetIcon(), "Brightness", Apps::None, Screens::Tile::Action::CycleBrightness},
+      }};
       currentScreen = std::make_unique<Screens::ApplicationList>(this,
                                                                  settingsController,
                                                                  batteryController,
                                                                  bleController,
                                                                  alarmController,
                                                                  dateTimeController,
-                                                                 filesystem,
+                                                                 brightnessController,
                                                                  std::move(apps));
     } break;
     case Apps::Clock: {
@@ -546,6 +547,10 @@ void DisplayApp::LoadScreen(Apps app, DisplayApp::FullRefreshDirections directio
         currentScreen.reset(userWatchFaces[0].create(controllers));
       }
       settingsController.SetAppMenu(0);
+      // The watchface is the root of navigation; nothing sits behind it. Clear the return
+      // stack so cycling the launcher <-> clock ring can't slowly fill it.
+      returnAppStack.Reset();
+      appStackDirections.Reset();
     } break;
     case Apps::Error:
       currentScreen = std::make_unique<Screens::Error>(bootError);

@@ -1,8 +1,8 @@
 #include "displayapp/screens/ApplicationList.h"
 #include "displayapp/screens/Tile.h"
+#include "displayapp/DisplayApp.h"
 #include <lvgl/lvgl.h>
 #include <functional>
-#include <algorithm>
 #include "components/settings/Settings.h"
 
 using namespace Pinetime::Applications::Screens;
@@ -23,16 +23,16 @@ ApplicationList::ApplicationList(DisplayApp* app,
                                  const Pinetime::Controllers::Ble& bleController,
                                  const Pinetime::Controllers::AlarmController& alarmController,
                                  Controllers::DateTime& dateTimeController,
-                                 Pinetime::Controllers::FS& filesystem,
-                                 std::array<Tile::Applications, UserAppTypes::Count>&& apps)
+                                 Pinetime::Controllers::BrightnessController& brightnessController,
+                                 std::array<Tile::Applications, nItems>&& applications)
   : app {app},
     settingsController {settingsController},
     batteryController {batteryController},
     bleController {bleController},
     alarmController {alarmController},
     dateTimeController {dateTimeController},
-    filesystem {filesystem},
-    apps {std::move(apps)},
+    brightnessController {brightnessController},
+    applications {std::move(applications)},
     screens {app, settingsController.GetAppMenu(), CreateScreenList(), Screens::ScreenListModes::UpDown} {
 }
 
@@ -41,20 +41,19 @@ ApplicationList::~ApplicationList() {
 }
 
 bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
+  // Bidirectional ring: swiping off either end of the list returns to the watchface.
+  if (event == TouchEvents::SwipeUp && screens.IsLast()) {
+    app->StartApp(Apps::Clock, DisplayApp::FullRefreshDirections::Up);
+    return true;
+  }
+  if (event == TouchEvents::SwipeDown && screens.IsFirst()) {
+    app->StartApp(Apps::Clock, DisplayApp::FullRefreshDirections::Down);
+    return true;
+  }
   return screens.OnTouchEvent(event);
 }
 
 std::unique_ptr<Screen> ApplicationList::CreateScreen(unsigned int screenNum) const {
-  std::array<Tile::Applications, appsPerScreen> pageApps;
-
-  for (int i = 0; i < appsPerScreen; i++) {
-    if (i + (screenNum * appsPerScreen) >= apps.size()) {
-      pageApps[i] = {"", Pinetime::Applications::Apps::None, false};
-    } else {
-      pageApps[i] = apps[i + (screenNum * appsPerScreen)];
-    }
-  }
-
   return std::make_unique<Screens::Tile>(screenNum,
                                          nScreens,
                                          app,
@@ -63,5 +62,6 @@ std::unique_ptr<Screen> ApplicationList::CreateScreen(unsigned int screenNum) co
                                          bleController,
                                          alarmController,
                                          dateTimeController,
-                                         pageApps);
+                                         brightnessController,
+                                         applications[screenNum]);
 }
