@@ -5,13 +5,9 @@
 
 #include "displayapp/screens/NotificationIcon.h"
 #include "displayapp/screens/Symbols.h"
-#include "displayapp/screens/WeatherSymbols.h"
 #include "components/battery/BatteryController.h"
 #include "components/ble/BleController.h"
 #include "components/ble/NotificationManager.h"
-#include "components/heartrate/HeartRateController.h"
-#include "components/motion/MotionController.h"
-#include "components/ble/SimpleWeatherService.h"
 #include "components/settings/Settings.h"
 
 using namespace Pinetime::Applications::Screens;
@@ -21,17 +17,11 @@ WatchFaceDigital::WatchFaceDigital(Controllers::DateTime& dateTimeController,
                                    const Controllers::Ble& bleController,
                                    const Controllers::AlarmController& alarmController,
                                    Controllers::NotificationManager& notificationManager,
-                                   Controllers::Settings& settingsController,
-                                   Controllers::HeartRateController& heartRateController,
-                                   Controllers::MotionController& motionController,
-                                   Controllers::SimpleWeatherService& weatherService)
+                                   Controllers::Settings& settingsController)
   : currentDateTime {{}},
     dateTimeController {dateTimeController},
     notificationManager {notificationManager},
     settingsController {settingsController},
-    heartRateController {heartRateController},
-    motionController {motionController},
-    weatherService {weatherService},
     statusIcons(batteryController, bleController, alarmController) {
 
   statusIcons.Create();
@@ -40,18 +30,6 @@ WatchFaceDigital::WatchFaceDigital(Controllers::DateTime& dateTimeController,
   lv_obj_set_style_local_text_color(notificationIcon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_LIME);
   lv_label_set_text_static(notificationIcon, NotificationIcon::GetIcon(false));
   lv_obj_align(notificationIcon, nullptr, LV_ALIGN_IN_TOP_LEFT, 0, 0);
-
-  weatherIcon = lv_label_create(lv_scr_act(), nullptr);
-  lv_obj_set_style_local_text_color(weatherIcon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x999999));
-  lv_obj_set_style_local_text_font(weatherIcon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &fontawesome_weathericons);
-  lv_label_set_text(weatherIcon, "");
-  lv_obj_align(weatherIcon, nullptr, LV_ALIGN_IN_TOP_MID, -20, 50);
-  lv_obj_set_auto_realign(weatherIcon, true);
-
-  temperature = lv_label_create(lv_scr_act(), nullptr);
-  lv_obj_set_style_local_text_color(temperature, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x999999));
-  lv_label_set_text(temperature, "");
-  lv_obj_align(temperature, nullptr, LV_ALIGN_IN_TOP_MID, 20, 50);
 
   label_date = lv_label_create(lv_scr_act(), nullptr);
   lv_obj_align(label_date, lv_scr_act(), LV_ALIGN_CENTER, 0, 60);
@@ -65,26 +43,6 @@ WatchFaceDigital::WatchFaceDigital(Controllers::DateTime& dateTimeController,
   label_time_ampm = lv_label_create(lv_scr_act(), nullptr);
   lv_label_set_text_static(label_time_ampm, "");
   lv_obj_align(label_time_ampm, lv_scr_act(), LV_ALIGN_IN_RIGHT_MID, -30, -55);
-
-  heartbeatIcon = lv_label_create(lv_scr_act(), nullptr);
-  lv_label_set_text_static(heartbeatIcon, Symbols::heartBeat);
-  lv_obj_set_style_local_text_color(heartbeatIcon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0xCE1B1B));
-  lv_obj_align(heartbeatIcon, lv_scr_act(), LV_ALIGN_IN_BOTTOM_LEFT, 0, 0);
-
-  heartbeatValue = lv_label_create(lv_scr_act(), nullptr);
-  lv_obj_set_style_local_text_color(heartbeatValue, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0xCE1B1B));
-  lv_label_set_text_static(heartbeatValue, "");
-  lv_obj_align(heartbeatValue, heartbeatIcon, LV_ALIGN_OUT_RIGHT_MID, 5, 0);
-
-  stepValue = lv_label_create(lv_scr_act(), nullptr);
-  lv_obj_set_style_local_text_color(stepValue, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x00FFE7));
-  lv_label_set_text_static(stepValue, "0");
-  lv_obj_align(stepValue, lv_scr_act(), LV_ALIGN_IN_BOTTOM_RIGHT, 0, 0);
-
-  stepIcon = lv_label_create(lv_scr_act(), nullptr);
-  lv_obj_set_style_local_text_color(stepIcon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x00FFE7));
-  lv_label_set_text_static(stepIcon, Symbols::shoe);
-  lv_obj_align(stepIcon, stepValue, LV_ALIGN_OUT_LEFT_MID, -5, 0);
 
   taskRefresh = lv_task_create(RefreshTaskCallback, LV_DISP_DEF_REFR_PERIOD, LV_TASK_PRIO_MID, this);
   Refresh();
@@ -148,47 +106,5 @@ void WatchFaceDigital::Refresh() {
       }
       lv_obj_realign(label_date);
     }
-  }
-
-  heartbeat = heartRateController.HeartRate();
-  heartbeatRunning = heartRateController.State() != Controllers::HeartRateController::States::Stopped;
-  if (heartbeat.IsUpdated() || heartbeatRunning.IsUpdated()) {
-    if (heartbeatRunning.Get()) {
-      lv_obj_set_style_local_text_color(heartbeatIcon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0xCE1B1B));
-      lv_label_set_text_fmt(heartbeatValue, "%d", heartbeat.Get());
-    } else {
-      lv_obj_set_style_local_text_color(heartbeatIcon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x1B1B1B));
-      lv_label_set_text_static(heartbeatValue, "");
-    }
-
-    lv_obj_realign(heartbeatIcon);
-    lv_obj_realign(heartbeatValue);
-  }
-
-  stepCount = motionController.NbSteps();
-  if (stepCount.IsUpdated()) {
-    lv_label_set_text_fmt(stepValue, "%lu", stepCount.Get());
-    lv_obj_realign(stepValue);
-    lv_obj_realign(stepIcon);
-  }
-
-  currentWeather = weatherService.Current();
-  if (currentWeather.IsUpdated()) {
-    auto optCurrentWeather = currentWeather.Get();
-    if (optCurrentWeather) {
-      int16_t temp = optCurrentWeather->temperature.Celsius();
-      char tempUnit = 'C';
-      if (settingsController.GetWeatherFormat() == Controllers::Settings::WeatherFormat::Imperial) {
-        temp = optCurrentWeather->temperature.Fahrenheit();
-        tempUnit = 'F';
-      }
-      lv_label_set_text_fmt(temperature, "%d°%c", temp, tempUnit);
-      lv_label_set_text(weatherIcon, Symbols::GetSymbol(optCurrentWeather->iconId, weatherService.IsNight()));
-    } else {
-      lv_label_set_text_static(temperature, "");
-      lv_label_set_text(weatherIcon, "");
-    }
-    lv_obj_realign(temperature);
-    lv_obj_realign(weatherIcon);
   }
 }
