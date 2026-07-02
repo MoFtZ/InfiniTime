@@ -68,6 +68,12 @@ namespace Pinetime {
         lv_obj_t* btnMessage = nullptr;
         lv_task_t* taskStopAlarm = nullptr;
 
+        // Day-picker mode elements
+        bool inDayPicker = false;
+        lv_obj_t* dayToggles[7] = {nullptr};
+        lv_obj_t* txtPickerSummary = nullptr;
+        lv_obj_t* btnPickerDone = nullptr;
+
         enum class EnableButtonState { On, Off, Alerting };
         void CreateLauncherUI();
         void CreateAlarmConfigUI(uint8_t alarmIndex);
@@ -76,7 +82,11 @@ namespace Pinetime {
         void SetAlarm();
         void ShowInfo();
         void HideInfo();
-        void ToggleRecurrence();
+        void OpenDayPicker();
+        void CreateDayPickerUI();
+        void ReturnToConfig();
+        void OnDayToggled();
+        void UpdatePickerSummary();
         void UpdateAlarmTime();
         void ReturnToLauncher();
         Widgets::Counter hourCounter = Widgets::Counter(0, 23, jetbrains_mono_76);

@@ -25,6 +25,8 @@
 #include "components/motor/MotorController.h"
 #include "systemtask/SystemTask.h"
 
+#include <cstring>
+
 using namespace Pinetime::Applications::Screens;
 using Pinetime::Controllers::AlarmController;
 
@@ -32,6 +34,54 @@ namespace {
   void ValueChangedHandler(void* userData) {
     auto* screen = static_cast<Alarm*>(userData);
     screen->OnValueChanged();
+  }
+
+  // Renders a weekday mask as: a preset name (Once/Daily/Weekdays/Weekend);
+  // for 1-2 non-preset days, space-separated 3-letter names ("Tue Thu");
+  // for 3+ non-preset days, a fixed Mon->Sun 7-slot strip with '_' for
+  // unselected days ("M_W_F__"). `out` must hold at least 12 chars.
+  void FormatRecurrence(uint8_t days, char* out) {
+    using AC = Pinetime::Controllers::AlarmController;
+    if (days == AC::DaysNone) {
+      std::strcpy(out, "Once");
+      return;
+    }
+    if (days == AC::DaysDaily) {
+      std::strcpy(out, "Daily");
+      return;
+    }
+    if (days == AC::DaysWeekdays) {
+      std::strcpy(out, "Weekdays");
+      return;
+    }
+    if (days == AC::DaysWeekend) {
+      std::strcpy(out, "Weekend");
+      return;
+    }
+
+    // Monday-first display order, expressed as tm_wday values.
+    static constexpr uint8_t wday[7] = {1, 2, 3, 4, 5, 6, 0};
+    static constexpr char initial[7] = {'M', 'T', 'W', 'T', 'F', 'S', 'S'};
+    static const char* const abbrev[7] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+
+    if (__builtin_popcount(days) <= 2) {
+      out[0] = '\0';
+      bool first = true;
+      for (uint8_t i = 0; i < 7; i++) {
+        if (days & (1 << wday[i])) {
+          if (!first) {
+            std::strcat(out, " ");
+          }
+          std::strcat(out, abbrev[i]);
+          first = false;
+        }
+      }
+    } else {
+      for (uint8_t i = 0; i < 7; i++) {
+        out[i] = (days & (1 << wday[i])) ? initial[i] : '_';
+      }
+      out[7] = '\0';
+    }
   }
 }
 
@@ -118,18 +168,9 @@ void Alarm::CreateLauncherUI() {
     lv_obj_set_style_local_text_font(alarmRecurLabels[i], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &jetbrains_mono_bold_20);
     lv_obj_set_style_local_text_opa(alarmRecurLabels[i], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_60);
 
-    using Pinetime::Controllers::AlarmController;
-    switch (alarmController.Recurrence(i)) {
-      case AlarmController::RecurType::None:
-        lv_label_set_text_static(alarmRecurLabels[i], "Once");
-        break;
-      case AlarmController::RecurType::Daily:
-        lv_label_set_text_static(alarmRecurLabels[i], "Daily");
-        break;
-      case AlarmController::RecurType::Weekdays:
-        lv_label_set_text_static(alarmRecurLabels[i], "M-F");
-        break;
-    }
+    char recurText[12];
+    FormatRecurrence(alarmController.DaysOfWeek(i), recurText);
+    lv_label_set_text(alarmRecurLabels[i], recurText);
     lv_obj_align(alarmRecurLabels[i], alarmButtons[i], LV_ALIGN_CENTER, 0, 12);
 
     // Create enable/disable switch
@@ -268,6 +309,24 @@ void Alarm::OnButtonEvent(lv_obj_t* obj, lv_event_t event) {
     return;
   }
 
+  // Handle day-picker mode events
+  if (inDayPicker) {
+    if (event == LV_EVENT_CLICKED && obj == btnPickerDone) {
+      ReturnToConfig();
+      return;
+    }
+    // Checkable day toggles fire VALUE_CHANGED after their state has flipped
+    if (event == LV_EVENT_VALUE_CHANGED) {
+      for (uint8_t i = 0; i < 7; i++) {
+        if (obj == dayToggles[i]) {
+          OnDayToggled();
+          return;
+        }
+      }
+    }
+    return;
+  }
+
   // Handle config mode events
   if (event == LV_EVENT_CLICKED) {
     if (obj == btnStop) {
@@ -288,8 +347,8 @@ void Alarm::OnButtonEvent(lv_obj_t* obj, lv_event_t event) {
       return;
     }
     if (obj == btnRecur) {
-      DisableAlarm();
-      ToggleRecurrence();
+      OpenDayPicker();
+      return;
     }
   }
 }
@@ -390,30 +449,85 @@ void Alarm::HideInfo() {
 }
 
 void Alarm::SetRecurButtonState() {
-  using Pinetime::Controllers::AlarmController;
-  switch (alarmController.Recurrence(selectedAlarmIndex)) {
-    case AlarmController::RecurType::None:
-      lv_label_set_text_static(txtRecur, "ONCE");
-      break;
-    case AlarmController::RecurType::Daily:
-      lv_label_set_text_static(txtRecur, "DAILY");
-      break;
-    case AlarmController::RecurType::Weekdays:
-      lv_label_set_text_static(txtRecur, "MON-FRI");
-  }
+  char recurText[12];
+  FormatRecurrence(alarmController.DaysOfWeek(selectedAlarmIndex), recurText);
+  lv_label_set_text(txtRecur, recurText);
 }
 
-void Alarm::ToggleRecurrence() {
-  using Pinetime::Controllers::AlarmController;
-  switch (alarmController.Recurrence(selectedAlarmIndex)) {
-    case AlarmController::RecurType::None:
-      alarmController.SetRecurrence(selectedAlarmIndex, AlarmController::RecurType::Daily);
-      break;
-    case AlarmController::RecurType::Daily:
-      alarmController.SetRecurrence(selectedAlarmIndex, AlarmController::RecurType::Weekdays);
-      break;
-    case AlarmController::RecurType::Weekdays:
-      alarmController.SetRecurrence(selectedAlarmIndex, AlarmController::RecurType::None);
+void Alarm::OpenDayPicker() {
+  lv_obj_clean(lv_scr_act());
+  inDayPicker = true;
+  CreateDayPickerUI();
+}
+
+void Alarm::ReturnToConfig() {
+  lv_obj_clean(lv_scr_act());
+  inDayPicker = false;
+  CreateAlarmConfigUI(selectedAlarmIndex);
+}
+
+void Alarm::CreateDayPickerUI() {
+  static constexpr lv_color_t bgColor = Colors::bgAlt;
+  static constexpr const char* dayNames[7] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+  static constexpr uint8_t wday[7] = {1, 2, 3, 4, 5, 6, 0};
+
+  const uint8_t days = alarmController.DaysOfWeek(selectedAlarmIndex);
+
+  lv_obj_t* title = lv_label_create(lv_scr_act(), nullptr);
+  lv_label_set_text_static(title, "Repeat on");
+  lv_obj_align(title, lv_scr_act(), LV_ALIGN_IN_TOP_MID, 0, 8);
+
+  for (uint8_t i = 0; i < 7; i++) {
+    dayToggles[i] = lv_btn_create(lv_scr_act(), nullptr);
+    dayToggles[i]->user_data = this;
+    lv_obj_set_event_cb(dayToggles[i], btnEventHandler);
+    lv_btn_set_checkable(dayToggles[i], true);
+    lv_obj_set_size(dayToggles[i], 68, 40);
+    const uint8_t col = i % 3;
+    const uint8_t row = i / 3;
+    lv_obj_align(dayToggles[i], lv_scr_act(), LV_ALIGN_IN_TOP_LEFT, 8 + col * 76, 40 + row * 46);
+    lv_obj_set_style_local_bg_color(dayToggles[i], LV_BTN_PART_MAIN, LV_STATE_DEFAULT, bgColor);
+    lv_obj_set_style_local_bg_color(dayToggles[i], LV_BTN_PART_MAIN, LV_STATE_CHECKED, Colors::highlight);
+
+    lv_obj_t* lbl = lv_label_create(dayToggles[i], nullptr);
+    lv_label_set_text_static(lbl, dayNames[i]);
+
+    if (days & (1 << wday[i])) {
+      lv_btn_set_state(dayToggles[i], LV_BTN_STATE_CHECKED_RELEASED);
+    }
   }
-  SetRecurButtonState();
+
+  txtPickerSummary = lv_label_create(lv_scr_act(), nullptr);
+  lv_obj_set_style_local_text_font(txtPickerSummary, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &jetbrains_mono_bold_20);
+  UpdatePickerSummary();
+
+  btnPickerDone = lv_btn_create(lv_scr_act(), nullptr);
+  btnPickerDone->user_data = this;
+  lv_obj_set_event_cb(btnPickerDone, btnEventHandler);
+  lv_obj_set_size(btnPickerDone, 80, 40);
+  lv_obj_align(btnPickerDone, lv_scr_act(), LV_ALIGN_IN_BOTTOM_RIGHT, -8, -12);
+  lv_obj_set_style_local_bg_color(btnPickerDone, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, bgColor);
+  lv_obj_t* txtDone = lv_label_create(btnPickerDone, nullptr);
+  lv_label_set_text_static(txtDone, "Done");
+}
+
+void Alarm::OnDayToggled() {
+  static constexpr uint8_t wday[7] = {1, 2, 3, 4, 5, 6, 0};
+  uint8_t days = 0;
+  for (uint8_t i = 0; i < 7; i++) {
+    if (lv_obj_get_state(dayToggles[i], LV_BTN_PART_MAIN) & LV_STATE_CHECKED) {
+      days |= (1 << wday[i]);
+    }
+  }
+  // Editing recurrence disables the alarm until re-armed (matches time editing)
+  DisableAlarm();
+  alarmController.SetDaysOfWeek(selectedAlarmIndex, days);
+  UpdatePickerSummary();
+}
+
+void Alarm::UpdatePickerSummary() {
+  char recurText[12];
+  FormatRecurrence(alarmController.DaysOfWeek(selectedAlarmIndex), recurText);
+  lv_label_set_text(txtPickerSummary, recurText);
+  lv_obj_align(txtPickerSummary, lv_scr_act(), LV_ALIGN_IN_BOTTOM_LEFT, 8, -14);
 }
