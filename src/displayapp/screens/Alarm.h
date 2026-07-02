@@ -30,7 +30,8 @@ namespace Pinetime {
     namespace Screens {
       class Alarm : public Screen {
       public:
-        explicit Alarm(Controllers::AlarmController& alarmController,
+        explicit Alarm(DisplayApp* app,
+                       Controllers::AlarmController& alarmController,
                        Controllers::Settings::ClockType clockType,
                        System::SystemTask& systemTask,
                        Controllers::MotorController& motorController);
@@ -44,6 +45,7 @@ namespace Pinetime {
         void StopAlerting();
 
       private:
+        Pinetime::Applications::DisplayApp* app;
         Controllers::AlarmController& alarmController;
         System::WakeLock wakeLock;
         Controllers::MotorController& motorController;
@@ -88,7 +90,8 @@ namespace Pinetime {
       static constexpr const char* icon = Screens::Symbols::bell;
 
       static Screens::Screen* Create(AppControllers& controllers) {
-        return new Screens::Alarm(controllers.alarmController,
+        return new Screens::Alarm(controllers.displayApp,
+                                  controllers.alarmController,
                                   controllers.settingsController.GetClockType(),
                                   *controllers.systemTask,
                                   controllers.motorController);

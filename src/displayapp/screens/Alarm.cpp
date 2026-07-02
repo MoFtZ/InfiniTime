@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include "displayapp/screens/Alarm.h"
+#include "displayapp/DisplayApp.h"
 #include "displayapp/screens/Screen.h"
 #include "displayapp/screens/Symbols.h"
 #include "displayapp/InfiniTimeTheme.h"
@@ -58,11 +59,12 @@ static void switchEventHandler(lv_obj_t* obj, lv_event_t event) {
   }
 }
 
-Alarm::Alarm(Controllers::AlarmController& alarmController,
+Alarm::Alarm(DisplayApp* app,
+             Controllers::AlarmController& alarmController,
              Controllers::Settings::ClockType clockType,
              System::SystemTask& systemTask,
              Controllers::MotorController& motorController)
-  : alarmController {alarmController}, wakeLock(systemTask), motorController {motorController}, clockType {clockType} {
+  : app {app}, alarmController {alarmController}, wakeLock(systemTask), motorController {motorController}, clockType {clockType} {
 
   // Decide which UI to show
   if (alarmController.IsAlerting()) {
@@ -270,7 +272,7 @@ void Alarm::OnButtonEvent(lv_obj_t* obj, lv_event_t event) {
   if (event == LV_EVENT_CLICKED) {
     if (obj == btnStop) {
       StopAlerting();
-      ReturnToLauncher();
+      app->StartApp(Apps::Clock, DisplayApp::FullRefreshDirections::Down);
       return;
     }
     if (obj == btnInfo) {
@@ -299,7 +301,7 @@ bool Alarm::OnButtonPushed() {
   }
   if (alarmController.IsAlerting()) {
     StopAlerting();
-    ReturnToLauncher();
+    app->StartApp(Apps::Clock, DisplayApp::FullRefreshDirections::Down);
     return true;
   }
   return false;
