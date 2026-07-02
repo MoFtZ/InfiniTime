@@ -365,7 +365,7 @@ namespace Pinetime {
 
         ClockType clockType = ClockType::H24;
         WeatherFormat weatherFormat = WeatherFormat::Metric;
-        Notification notificationStatus = Notification::On;
+        Notification notificationStatus = Notification::Off;
 
         Pinetime::Applications::WatchFace watchFace = Pinetime::Applications::WatchFace::Digital;
         ChimesOption chimesOption = ChimesOption::None;
