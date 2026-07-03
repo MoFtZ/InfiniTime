@@ -47,7 +47,9 @@ WatchFacePicture::WatchFacePicture(Controllers::DateTime& dateTimeController,
 
   labelTimeAmPm = lv_label_create(lv_scr_act(), nullptr);
   lv_label_set_text_static(labelTimeAmPm, "");
-  lv_obj_align(labelTimeAmPm, labelTime, LV_ALIGN_OUT_RIGHT_TOP, 4, 0);
+  // The time nearly fills the screen width, so AM/PM sits as a superscript above the
+  // time's right edge rather than beside it (which would run off-screen).
+  lv_obj_align(labelTimeAmPm, labelTime, LV_ALIGN_OUT_TOP_RIGHT, -4, 0);
 
   filesystem.DirCreate(PicturesDir); // ensure the folder exists (harmless if present)
   LoadPictureList();
