@@ -1,4 +1,95 @@
 {
+   "01_marshmellow" : {
+      "sources": "images/watchface/01_marshmellow.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "02_anime" : {
+      "sources": "images/watchface/02_anime.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "3_cr" : {
+      "sources": "images/watchface/3_cr.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "4_pk" : {
+      "sources": "images/watchface/4_pk.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "5_bs" : {
+      "sources": "images/watchface/5_bs.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "6_pkcm" : {
+      "sources": "images/watchface/6_pkcm.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "7_db" : {
+      "sources": "images/watchface/7_db.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "8_db" : {
+      "sources": "images/watchface/8_db.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "9_db" : {
+      "sources": "images/watchface/9_db.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "10_lh" : {
+      "sources": "images/watchface/10_lh.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "11_cat" : {
+      "sources": "images/watchface/11_cat.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "12_cat" : {
+      "sources": "images/watchface/12_cat.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
+   "13_cat" : {
+      "sources": "images/watchface/13_cat.png",
+      "color_format": "CF_TRUE_COLOR_ALPHA",
+      "output_format": "bin",
+      "binary_format": "ARGB8565_RBSWAP",
+      "target_path": "/images/watchface/"
+   },
    "pine_small" : {
       "sources": "images/pine_logo.png",
       "color_format": "CF_TRUE_COLOR_ALPHA",
